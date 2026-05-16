@@ -29,42 +29,49 @@ export default function AddOrder() {
 
   const startCamera = async () => {
     try {
+      // Try ideal first
       const constraints: MediaStreamConstraints = {
         video: { 
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       };
       
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        console.warn("Environmental camera failed, trying general camera...", e);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
 
         // Try to enable continuous focus if supported
         const track = stream.getVideoTracks()[0];
-        // @ts-expect-error - getCapabilities is not in standard MediaStreamTrack type but exists in many browsers
-        const capabilities = track.getCapabilities();
-        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-          // @ts-expect-error - applyConstraints for advanced focus mode
-          await track.applyConstraints({
-            advanced: [{ focusMode: 'continuous' }]
-          });
+        try {
+          // @ts-expect-error - getCapabilities is not in standard MediaStreamTrack type
+          if (track.getCapabilities) {
+            // @ts-expect-error - getCapabilities
+            const capabilities = track.getCapabilities();
+            if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+              // @ts-expect-error - applyConstraints
+              await track.applyConstraints({
+                advanced: [{ focusMode: 'continuous' }]
+              });
+            }
+          }
+        } catch (focusErr) {
+          console.warn("Focus constraints not supported:", focusErr);
         }
       }
     } catch (err: unknown) {
       console.error("Camera error:", err);
-      try {
-          // Absolute fallback if ideal environment fails
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          if (videoRef.current) {
-            videoRef.current.srcObject = fallbackStream;
-            streamRef.current = fallbackStream;
-          }
-      } catch {
-          toast.error("Camera not accessible. Please ensure permissions are granted and camera is available.");
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Camera error: ${msg}. Please ensure permissions are granted.`);
     }
   };
 
