@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import dotenv from "dotenv";
 
@@ -30,12 +29,11 @@ async function startServer() {
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: "Image data required" });
 
-      const geminiKey = process.env.GEMINI_API_KEY;
       const openaiKey = process.env.OPENAI_API_KEY;
 
-      if (!geminiKey && !openaiKey) {
-        console.error("Neither GEMINI_API_KEY nor OPENAI_API_KEY is missing from environment");
-        return res.status(500).json({ error: "No AI API keys configured. Please add GEMINI_API_KEY or OPENAI_API_KEY in Settings > Secrets." });
+      if (!openaiKey) {
+        console.error("OPENAI_API_KEY is missing from environment");
+        return res.status(500).json({ error: "OPENAI_API_KEY is not configured on the server. Please add it in Settings > Secrets." });
       }
 
       const prompt = `Extract details from this shipping/invoice label. 
@@ -51,94 +49,34 @@ async function startServer() {
 
       let responseText = "";
       
-      // Try Gemini first if key exists
-      if (geminiKey) {
-        try {
-          console.log("Initializing Gemini AI...");
-          const ai = new GoogleGenAI({
-            apiKey: geminiKey,
-            httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-          });
-
-          console.log("Sending request to Gemini AI (1.5 Flash)...");
-          let result;
-          const part1 = { text: prompt };
-          const part2 = {
-            inlineData: {
-              data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
-              mimeType: "image/jpeg",
-            },
-          };
-
-          try {
-            // Try 1.5 Flash first (high quota)
-            result = await ai.models.generateContent({
-              model: "gemini-1.5-flash-latest",
-              contents: [{ parts: [part1, part2] }]
-            });
-          } catch (firstError: unknown) {
-            const firstMsg = firstError instanceof Error ? firstError.message : "Unknown error";
-            console.warn("Gemini 1.5 Flash failed, trying fallback model gemini-1.5-flash...", firstMsg);
-            try {
-              result = await ai.models.generateContent({
-                model: "gemini-1.5-flash",
-                contents: [{ parts: [part1, part2] }]
-              });
-            } catch (secondError: unknown) {
-               const secondMsg = secondError instanceof Error ? secondError.message : "Unknown error";
-               console.warn("Fallback to 1.5-flash failed, trying gemini-2.0-flash-exp...", secondMsg);
-               try {
-                 result = await ai.models.generateContent({
-                   model: "gemini-2.0-flash-exp",
-                   contents: [{ parts: [part1, part2] }]
-                 });
-               } catch {
-                 console.warn("All primary fallbacks failed, trying gemini-3-flash-preview (Low Quota)...");
-                 result = await ai.models.generateContent({
-                   model: "gemini-3-flash-preview",
-                   contents: [{ parts: [part1, part2] }]
-                 });
-               }
-            }
-          }
-          responseText = result.text || "";
-        } catch (geminiError) {
-          console.error("All Gemini models failed:", geminiError);
-          if (!openaiKey) throw geminiError;
-        }
-      }
-
-      // If Gemini failed or didn't exist, and OpenAI key exists, try OpenAI
-      if (!responseText && openaiKey) {
-        try {
-          console.log("Gemini failed or missing, trying OpenAI GPT-4o-mini...");
-          const openai = new OpenAI({ apiKey: openaiKey });
-          
-          const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
-                    }
+      try {
+        console.log("Using OpenAI GPT-4o-mini for extraction...");
+        const openai = new OpenAI({ apiKey: openaiKey });
+        
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
                   }
-                ]
-              }
-            ],
-            response_format: { type: "json_object" }
-          });
-          
-          responseText = response.choices[0].message.content || "";
-          console.log("OpenAI Response received.");
-        } catch (openaiError) {
-          console.error("OpenAI failed:", openaiError);
-          throw openaiError;
-        }
+                }
+              ]
+            }
+          ],
+          response_format: { type: "json_object" }
+        });
+        
+        responseText = response.choices[0].message.content || "";
+        console.log("OpenAI Response received.");
+      } catch (openaiError) {
+        console.error("OpenAI failed:", openaiError);
+        throw openaiError;
       }
       console.log("AI Response received (length):", responseText.length);
       
@@ -168,18 +106,17 @@ async function startServer() {
         message?.includes("429") || 
         message?.includes("quota") || 
         message?.includes("RESOURCE_EXHAUSTED") ||
-        status === "RESOURCE_EXHAUSTED" ||
         status === 429
       ) {
-        clientError = "GEMINI_QUOTA_EXCEEDED: Daily limit reached. NOTE: Gemini 1.5 Flash supports up to 1,500 requests per day for free. If you are seeing this, you may have reached that limit or are using a restricted API key. To increase your limit, please enable billing in your Google Cloud Project or wait for the reset.";
+        clientError = "OPENAI_QUOTA_EXCEEDED: Daily limit reached or credits exhausted. Please check your OpenAI billing details or wait for the reset.";
       } 
       // Check for invalid API key
       else if (message?.includes("API_KEY_INVALID") || message?.includes("401")) {
-        clientError = "INVALID_API_KEY: The Gemini API key provided is invalid. Please check your key in Settings > Secrets.";
+        clientError = "INVALID_API_KEY: The OpenAI API key provided is invalid. Please check your key in Settings > Secrets.";
       }
       // Check for 404 (model not found)
       else if (message?.includes("404") || message?.includes("NOT_FOUND")) {
-        clientError = "MODEL_NOT_FOUND: The specified Gemini model was not found. Reverting to standard model.";
+        clientError = "MODEL_NOT_FOUND: The specified OpenAI model was not found.";
       }
       
       res.status(500).json({ error: clientError });

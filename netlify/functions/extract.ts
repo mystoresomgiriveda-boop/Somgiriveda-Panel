@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 
 export const handler = async (event: { httpMethod: string; body: string }) => {
@@ -13,14 +12,13 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Image data required" }) };
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
-    if (!geminiKey && !openaiKey) {
-      console.error("Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured on Netlify.");
+    if (!openaiKey) {
+      console.error("OPENAI_API_KEY is missing from Netlify environment variables.");
       return { 
         statusCode: 500, 
-        body: JSON.stringify({ error: "No AI API keys configured on Netlify. Please add GEMINI_API_KEY or OPENAI_API_KEY in Site Settings." }) 
+        body: JSON.stringify({ error: "OPENAI_API_KEY is not configured on Netlify. Please add it to your Site Settings." }) 
       };
     }
 
@@ -37,81 +35,33 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
 
     let responseText = "";
 
-    // Try Gemini if key exists
-    if (geminiKey) {
-      try {
-        console.log("Extending request to Gemini AI (1.5 Flash)...");
-        const ai = new GoogleGenAI({
-          apiKey: geminiKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build-netlify' } }
-        });
-
-        let result;
-        const part1 = { text: prompt };
-        const part2 = {
-          inlineData: {
-            data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
-            mimeType: "image/jpeg",
-          },
-        };
-
-        try {
-          result = await ai.models.generateContent({
-            model: "gemini-1.5-flash-latest",
-            contents: [{ parts: [part1, part2] }]
-          });
-        } catch (firstError: unknown) {
-          const firstMsg = firstError instanceof Error ? firstError.message : "Unknown error";
-          console.warn("Gemini 1.5 Flash failed, trying fallback models...", firstMsg);
-          try {
-            result = await ai.models.generateContent({
-              model: "gemini-1.5-flash",
-              contents: [{ parts: [part1, part2] }]
-            });
-          } catch {
-             result = await ai.models.generateContent({
-               model: "gemini-3-flash-preview",
-               contents: [{ parts: [part1, part2] }]
-             });
-          }
-        }
-        responseText = result.text || "";
-      } catch (geminiError) {
-        console.error("Gemini failed in function:", geminiError);
-        if (!openaiKey) throw geminiError;
-      }
-    }
-
-    // Try OpenAI if Gemini failed or missing
-    if (!responseText && openaiKey) {
-      try {
-        console.log("Trying OpenAI in Netlify function...");
-        const openai = new OpenAI({ apiKey: openaiKey });
-        
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
-                  }
+    try {
+      console.log("Using OpenAI GPT-4o-mini in Netlify function...");
+      const openai = new OpenAI({ apiKey: openaiKey });
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
                 }
-              ]
-            }
-          ],
-          response_format: { type: "json_object" }
-        });
-        
-        responseText = response.choices[0].message.content || "";
-      } catch (openaiError) {
-        console.error("OpenAI failed in function:", openaiError);
-        throw openaiError;
-      }
+              }
+            ]
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+      
+      responseText = response.choices[0].message.content || "";
+    } catch (openaiError) {
+      console.error("OpenAI failed in function:", openaiError);
+      throw openaiError;
     }
 
     if (!responseText) {
@@ -141,9 +91,9 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     const message = error instanceof Error ? error.message : "";
     
     if (message?.includes("429") || message?.includes("quota") || message?.includes("RESOURCE_EXHAUSTED")) {
-      clientError = "GEMINI_QUOTA_EXCEEDED: Daily limit reached (1,500 requests/day for Flash). Note: Free tier allows 1,500 requests per day. If you need more, please add a billing-enabled key.";
+      clientError = "OPENAI_QUOTA_EXCEEDED: Daily limit reached or credits exhausted. Please check your OpenAI billing details or wait for the reset.";
     } else if (message?.includes("API_KEY_INVALID")) {
-      clientError = "INVALID_API_KEY: Please check your Gemini API key in Netlify settings.";
+      clientError = "INVALID_API_KEY: Please check your OpenAI API key in Netlify settings.";
     }
 
     return {
