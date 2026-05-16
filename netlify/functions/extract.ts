@@ -34,20 +34,25 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     // Try Gemini 1.5 Flash (1500 free/day)
     try {
       console.log("Netlify Function: Using Gemini 1.5 Flash...");
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const ai = new GoogleGenAI({ 
+        apiKey: geminiKey,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
       
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
-            mimeType: "image/jpeg",
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          { text: prompt },
+          {
+            inlineData: {
+              data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
+              mimeType: "image/jpeg",
+            },
           },
-        },
-      ]);
+        ],
+      });
       
-      responseText = result.response.text();
+      responseText = response.text || "";
     } catch (geminiError: unknown) {
       const errorMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
       console.error("Gemini failed in function:", errorMsg);

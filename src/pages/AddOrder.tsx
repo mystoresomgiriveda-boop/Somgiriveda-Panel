@@ -29,12 +29,13 @@ export default function AddOrder() {
 
   const startCamera = async () => {
     try {
-      // Try ideal first
+      stopCamera();
+
       const constraints: MediaStreamConstraints = {
         video: { 
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
       };
       
@@ -42,7 +43,7 @@ export default function AddOrder() {
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (e) {
-        console.warn("Environmental camera failed, trying general camera...", e);
+        console.warn("Environmental camera failed, trying any video device...", e);
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
@@ -50,19 +51,12 @@ export default function AddOrder() {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
 
-        // Try to enable continuous focus if supported
         const track = stream.getVideoTracks()[0];
         try {
-          // @ts-expect-error - getCapabilities is not in standard MediaStreamTrack type
-          if (track.getCapabilities) {
-            // @ts-expect-error - getCapabilities
-            const capabilities = track.getCapabilities();
-            if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-              // @ts-expect-error - applyConstraints
-              await track.applyConstraints({
-                advanced: [{ focusMode: 'continuous' }]
-              });
-            }
+          // @ts-expect-error - getCapabilities
+          if (track.getCapabilities && track.getCapabilities().focusMode?.includes('continuous')) {
+            // @ts-expect-error - applyConstraints
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
           }
         } catch (focusErr) {
           console.warn("Focus constraints not supported:", focusErr);
@@ -71,7 +65,7 @@ export default function AddOrder() {
     } catch (err: unknown) {
       console.error("Camera error:", err);
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Camera error: ${msg}. Please ensure permissions are granted.`);
+      toast.error(`Camera error: ${msg}. Check permissions.`);
     }
   };
 
