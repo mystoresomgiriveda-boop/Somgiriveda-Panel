@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, Calendar, Filter, ArrowUpRight } from 'lucide-react';
-import { motion } from 'motion/react';
-import { subDays, isAfter, startOfDay } from 'date-fns';
+import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, Calendar, Filter, ArrowUpRight, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { subDays, isAfter, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 
 interface Order {
@@ -19,7 +20,9 @@ interface Order {
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days
+  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, custom
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -56,6 +59,12 @@ export default function Dashboard() {
     if (filterDate === '30days') {
       return isAfter(orderDate, subDays(new Date(), 30));
     }
+    if (filterDate === 'custom' && dateRange.start && dateRange.end) {
+      return isWithinInterval(orderDate, {
+        start: startOfDay(new Date(dateRange.start)),
+        end: endOfDay(new Date(dateRange.end))
+      });
+    }
     return true;
   });
 
@@ -87,11 +96,11 @@ export default function Dashboard() {
   const topRtoCourier = Object.entries(rtoByCourier).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
 
   const statCards = [
-    { title: 'Total Earnings', value: `₹${stats.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
-    { title: 'RTO Success', value: stats.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
+    { title: 'Total Orders', value: stats.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
+    { title: 'Earnings', value: `₹${stats.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
+    { title: 'Delivered', value: stats.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
+    { title: 'Total Return', value: stats.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
     { title: 'RTO %', value: `${rtoPercentage}%`, icon: Filter, color: 'bg-slate-500', bg: 'bg-slate-50' },
-    { title: 'Pending', value: stats.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
-    { title: 'High Priority', value: stats.highPriority, icon: AlertTriangle, color: 'bg-red-600', bg: 'bg-red-50', highlight: true },
   ];
 
   if (loading) {
@@ -112,8 +121,8 @@ export default function Dashboard() {
           <p className="text-slate-500 text-sm">Real-time logistics analytics and monitoring.</p>
         </div>
 
-        <div className="flex items-center gap-2 p-1 bg-white border border-slate-200 rounded-xl w-fit">
-          {['all', 'today', '7days', '30days'].map((d) => (
+        <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-slate-200 rounded-xl w-fit">
+          {['all', 'today', '7days', '30days', 'custom'].map((d) => (
             <button
               key={d}
               onClick={() => setFilterDate(d)}
@@ -127,6 +136,38 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <AnimatePresence>
+        {filterDate === 'custom' && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white border border-slate-100 rounded-[1.5rem] p-4 flex flex-wrap items-center gap-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">From</span>
+                <input 
+                  type="date" 
+                  value={dateRange.start}
+                  onChange={e => setDateRange({...dateRange, start: e.target.value})}
+                  className="bg-slate-50 border-none rounded-lg p-2 text-xs font-bold outline-none ring-1 ring-slate-200 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">To</span>
+                <input 
+                  type="date" 
+                  value={dateRange.end}
+                  onChange={e => setDateRange({...dateRange, end: e.target.value})}
+                  className="bg-slate-50 border-none rounded-lg p-2 text-xs font-bold outline-none ring-1 ring-slate-200 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stat Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -229,7 +270,7 @@ export default function Dashboard() {
             <p className="text-slate-400 text-sm mb-8 max-w-[200px]">Total Orders processed in selected period: <span className="text-white font-bold">{stats.total}</span></p>
           </div>
           <button 
-             onClick={() => window.location.href = '/add-order'}
+             onClick={() => navigate('/add-order')}
              className="relative z-10 w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-sm hover:scale-[1.02] transition-transform active:scale-95"
           >
             Launch Scanner

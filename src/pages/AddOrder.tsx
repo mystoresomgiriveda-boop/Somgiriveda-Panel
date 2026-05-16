@@ -270,20 +270,22 @@ export default function AddOrder() {
 
           <hr className="border-slate-50" />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-2">
               <label className="text-xs font-black uppercase text-slate-400 ml-1">Courier Service</label>
-              <select 
-                  value={formData.courierName}
-                  onChange={e => setFormData({...formData, courierName: e.target.value})}
-                  className="w-full bg-slate-50 border border-transparent focus:border-blue-500 focus:bg-white p-3.5 rounded-2xl outline-none transition-all font-bold text-sm"
-              >
-                <option value="Delhivery">Delhivery</option>
-                <option value="Bluedart">Bluedart</option>
-                <option value="Ecom Express">Ecom Express</option>
-                <option value="Xpressbees">Xpressbees</option>
-                <option value="Shadowfax">Shadowfax</option>
-              </select>
+              <div className="relative">
+                <div className="absolute left-4 top-3.5 text-slate-400">
+                  <Package size={18} />
+                </div>
+                <input 
+                    type="text" 
+                    value={formData.courierName}
+                    onChange={e => setFormData({...formData, courierName: e.target.value})}
+                    className="w-full bg-slate-50 border border-transparent focus:border-blue-500 focus:bg-white p-3.5 pl-12 rounded-2xl outline-none transition-all font-bold text-sm"
+                    placeholder="Courier Company (AI will auto-fill)"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 ml-2 italic">Automatically detected during scan.</p>
             </div>
           </div>
 

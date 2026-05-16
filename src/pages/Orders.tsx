@@ -177,18 +177,14 @@ export default function Orders() {
                   </div>
                </div>
 
-               <div className="grid grid-cols-3 gap-4 py-4 border-y border-slate-50 my-4 text-xs">
+               <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-50 my-4 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400 flex items-center gap-1"><Hash size={12} /> ID</span>
                     <p className="font-bold font-mono tracking-tighter text-slate-900">{order.orderId}</p>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 text-right">
                     <span className="text-slate-400">Courier</span>
                     <p className="font-bold text-slate-900">{order.courierName}</p>
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <span className="text-slate-400">Ref Code</span>
-                    <p className="font-bold text-slate-900">#{order.id.slice(-6).toUpperCase()}</p>
                   </div>
                </div>
 

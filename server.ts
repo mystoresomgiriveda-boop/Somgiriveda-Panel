@@ -48,8 +48,10 @@ async function startServer() {
       const prompt = `Extract details from this shipping/invoice label. 
       Respond ONLY with a JSON object: 
       { "orderId": string, "customerName": string, "amount": number, "courierName": string }. 
-      If a value is not found, use an empty string or 0 for amount.
-      Couriers often mentioned: Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax.`;
+      
+      CRITICAL: Identify the courier company name (e.g., Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax, Shiprocket, Amazon Shipping, etc.). 
+      Even if not explicitly labeled "Courier", look for their logos or brand names.
+      If a value is not found, use an empty string or 0 for amount.`;
 
       console.log("Sending request to Gemini-3...");
       const result = await ai.models.generateContent({
