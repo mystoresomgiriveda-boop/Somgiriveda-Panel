@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, custom
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,24 +78,37 @@ export default function Dashboard() {
     earnings: filteredOrders
       .filter(o => o.status === 'delivered')
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0),
-    highPriority: filteredOrders.filter(o => {
-      if (o.status !== 'pending') return false;
-      const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);
-      return isAfter(subDays(new Date(), 7), orderDate);
-    }).length,
+  };
+
+  const highPriorityOrdersList = orders.filter(o => {
+    if (o.status !== 'pending') return false;
+    const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);
+    return isAfter(subDays(new Date(), 15), orderDate);
+  });
+
+  const statsCount = {
+    ...stats,
+    highPriority: highPriorityOrdersList.length
   };
 
   const rtoPercentage = stats.total > 0 ? ((stats.rto / stats.total) * 100).toFixed(1) : '0';
 
   // Find courier with most RTO
   const rtoByCourier: Record<string, number> = {};
-  filteredOrders.filter(o => o.status === 'rto_success').forEach(o => {
+  const deliveryByCourier: Record<string, number> = {};
+
+  filteredOrders.forEach(o => {
     // @ts-expect-error - courierName is present in Order data but not in interface
     const courier = (o as { courierName?: string }).courierName || 'Unknown';
-    rtoByCourier[courier] = (rtoByCourier[courier] || 0) + 1;
+    if (o.status === 'rto_success') {
+      rtoByCourier[courier] = (rtoByCourier[courier] || 0) + 1;
+    } else if (o.status === 'delivered') {
+      deliveryByCourier[courier] = (deliveryByCourier[courier] || 0) + 1;
+    }
   });
   
   const topRtoCourier = Object.entries(rtoByCourier).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
+  const topDeliveryCourier = Object.entries(deliveryByCourier).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
 
   // State analytics
   const deliveriesByState: Record<string, number> = {};
@@ -113,11 +127,11 @@ export default function Dashboard() {
   const highRtoState = Object.entries(rtoByState).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
 
   const statCards = [
-    { title: 'Total Orders', value: stats.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
-    { title: 'Earnings', value: `₹${stats.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
-    { title: 'Pending', value: stats.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
-    { title: 'Delivered', value: stats.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
-    { title: 'Total Return', value: stats.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
+    { title: 'Total Orders', value: statsCount.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
+    { title: 'Earnings', value: `₹${statsCount.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
+    { title: 'Pending', value: statsCount.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
+    { title: 'Delivered', value: statsCount.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
+    { title: 'Total Return', value: statsCount.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
     { title: 'RTO %', value: `${rtoPercentage}%`, icon: Filter, color: 'bg-slate-500', bg: 'bg-slate-50' },
   ];
 
@@ -135,7 +149,7 @@ export default function Dashboard() {
     <div className="space-y-8 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dev Somgiriveda Panel</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dev Somgiriveda</h1>
           <p className="text-slate-500 text-sm">Real-time logistics analytics and monitoring.</p>
         </div>
 
@@ -217,35 +231,117 @@ export default function Dashboard() {
       </div>
 
       {/* Featured Alerts / Priority List Preview */}
-      {stats.highPriority > 0 && (
-        <div className="bg-red-50 border border-red-100 rounded-[2rem] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 blur-3xl rounded-full -mr-32 -mt-32" />
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shrink-0">
-                <AlertTriangle className="text-white" size={24} />
+      {statsCount.highPriority > 0 && (
+        <div className="space-y-6">
+          <div className="bg-red-50 border border-red-100 rounded-[2rem] p-6 relative overflow-hidden shadow-sm">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 blur-3xl rounded-full -mr-32 -mt-32" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
+                  <AlertTriangle className="text-white" size={24} />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Orders Overdue</h4>
+                  <p className="text-red-700/80 text-sm max-w-md">These orders have been pending for more than 15 days. Immediate action is recommended.</p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-lg font-bold text-red-900">High Priority Orders Detected</h4>
-                <p className="text-red-700/80 text-sm max-w-md">There are {stats.highPriority} orders that have been pending for more than 7 days. These require immediate attention to prevent delivery delays.</p>
-              </div>
+              <button 
+                onClick={() => setShowOverdueModal(true)}
+                className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-200 hover:bg-red-700 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 whitespace-nowrap"
+              >
+                Open Alert Dialog <ArrowUpRight size={16} />
+              </button>
             </div>
-            <button 
-              onClick={() => {}} // Could navigate to orders with priority filter
-              className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-200 hover:bg-red-700 transition-colors flex items-center gap-2"
-            >
-              View Priority List <ArrowUpRight size={16} />
-            </button>
           </div>
         </div>
       )}
+
+      {/* Overdue Alert Dialog (Modal) */}
+      <AnimatePresence>
+        {showOverdueModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowOverdueModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl border-4 border-red-50 overflow-hidden"
+            >
+              <div className="bg-red-600 p-8 text-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                      <AlertTriangle size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black">Overdue Alerts</h3>
+                      <p className="text-red-100 text-sm font-medium">Pending for 15+ Days</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowOverdueModal(false)}
+                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-2 max-h-[60vh] overflow-y-auto">
+                <div className="divide-y divide-slate-100">
+                  {highPriorityOrdersList.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-5 hover:bg-red-50/50 transition-colors rounded-2xl">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center font-bold text-red-600 text-sm">
+                          {order.customerName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 leading-tight">{order.customerName}</p>
+                          <p className="text-xs text-slate-400 font-mono">ID: {order.orderId}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-red-600">₹{order.amount}</p>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/orders');
+                          }}
+                          className="text-[10px] text-red-500 font-black uppercase hover:underline"
+                        >
+                          Resolve →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="p-6 pt-0">
+                <button 
+                  onClick={() => setShowOverdueModal(false)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-slate-800 transition-colors"
+                >
+                  Dismiss Alerts
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Simple Table Preview or Charts could go here */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-black text-slate-900">Recent Activity</h3>
-            <button className="text-blue-600 text-xs font-bold hover:underline">See all orders</button>
+            <button onClick={() => navigate('/orders')} className="text-blue-600 text-xs font-bold hover:underline">See all orders</button>
           </div>
           <div className="space-y-4">
             {filteredOrders.slice(0, 5).map((order) => (
@@ -286,6 +382,10 @@ export default function Dashboard() {
             <h3 className="text-2xl font-black mb-2 leading-tight">Courier & State <br />Analysis.</h3>
             <div className="space-y-3 mb-8 text-sm">
               <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <span className="text-slate-400">Top Delivery Courier</span>
+                <span className="text-blue-400 font-bold">{topDeliveryCourier}</span>
+              </div>
+              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                 <span className="text-slate-400">High Deliveries State</span>
                 <span className="text-emerald-400 font-bold">{highDeliveriesState}</span>
               </div>
@@ -296,10 +396,6 @@ export default function Dashboard() {
               <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                 <span className="text-slate-400">Top RTO Courier</span>
                 <span className="text-amber-400 font-bold">{topRtoCourier}</span>
-              </div>
-              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
-                <span className="text-slate-400">Total Period Orders</span>
-                <span className="text-white font-bold">{stats.total}</span>
               </div>
             </div>
           </div>
@@ -312,5 +408,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+
   );
 }
