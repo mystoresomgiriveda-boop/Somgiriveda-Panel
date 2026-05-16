@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Customer order details",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "description": "Unique order identifier" },
+        "customerName": { "type": "string", "description": "Name of the customer" },
+        "amount": { "type": "number", "description": "Order amount" },
+        "courierName": { "type": "string", "description": "Shipping courier" },
+        "trackingId": { "type": "string", "description": "Courier tracking number" },
+        "date": { "type": "string", "format": "date-time", "description": "Creation date" },
+        "status": { "type": "string", "enum": ["pending", "delivered", "rto_success"], "description": "Current status" },
+        "isHighPriority": { "type": "boolean", "description": "Automatically flagged high priority" },
+        "createdBy": { "type": "string", "description": "UID of the admin who added the order" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Firestore creation timestamp" }
+      },
+      "required": ["orderId", "customerName", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "orders": {
+      "schema": "Order",
+      "description": "Active orders collection"
+    }
+  }
+}

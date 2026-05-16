@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidOrder(data) {
+      return data.orderId is string && data.orderId.size() > 0 && data.orderId.size() < 128 &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() < 128 &&
+             data.amount is number && data.amount >= 0 &&
+             data.status in ['pending', 'delivered', 'rto_success'] &&
+             data.courierName is string &&
+             data.date is string;
+    }
+
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      
+      allow create: if isSignedIn() 
+                    && isValidOrder(request.resource.data)
+                    && request.resource.data.createdAt == request.time;
+      
+      allow update: if isSignedIn() 
+                    && isValidOrder(request.resource.data)
+                    && (
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) ||
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderId', 'customerName', 'amount', 'courierName', 'trackingId', 'status', 'date'])
+                    );
+      
+      allow delete: if isSignedIn();
+    }
+  }
+}
