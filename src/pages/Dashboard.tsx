@@ -64,7 +64,9 @@ export default function Dashboard() {
     pending: filteredOrders.filter(o => o.status === 'pending').length,
     delivered: filteredOrders.filter(o => o.status === 'delivered').length,
     rto: filteredOrders.filter(o => o.status === 'rto_success').length,
-    earnings: filteredOrders.filter(o => o.status === 'delivered').reduce((acc, curr) => acc + (curr.amount || 0), 0),
+    earnings: filteredOrders
+      .filter(o => o.status === 'delivered')
+      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0),
     highPriority: filteredOrders.filter(o => {
       if (o.status !== 'pending') return false;
       const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);

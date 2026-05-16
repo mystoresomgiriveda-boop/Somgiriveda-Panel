@@ -3,7 +3,6 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
 import { Camera, Scan, Sparkles, Zap, RotateCcw, Save, X, Loader2, DollarSign, User, Package, MessageSquare, ArrowRight } from 'lucide-react';
-import { createWorker } from 'tesseract.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { playBeep, cn, handleFirestoreError, OperationType } from '../lib/utils';
 
@@ -44,11 +43,11 @@ export default function AddOrder() {
 
   const startCamera = async () => {
     try {
-      const constraints = {
+      const constraints: MediaStreamConstraints = {
         video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
       };
       
@@ -56,22 +55,27 @@ export default function AddOrder() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+
+        // Try to enable continuous focus if supported
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities() as any;
+        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+          await (track as any).applyConstraints({
+            advanced: [{ focusMode: 'continuous' }]
+          });
+        }
       }
     } catch (err: any) {
       console.error("Camera error:", err);
-      if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
-        try {
-           // Fallback to simple camera
-           const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-           if (videoRef.current) {
-             videoRef.current.srcObject = fallbackStream;
-             streamRef.current = fallbackStream;
-           }
-        } catch (innerErr) {
-           toast.error("Camera not accessible. Please ensure permissions are granted.");
-        }
-      } else {
-        toast.error(`Camera error: ${err.message}`);
+      try {
+          // Absolute fallback if ideal environment fails
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          if (videoRef.current) {
+            videoRef.current.srcObject = fallbackStream;
+            streamRef.current = fallbackStream;
+          }
+      } catch (innerErr) {
+          toast.error("Camera not accessible. Please ensure permissions are granted and camera is available.");
       }
     }
   };
@@ -312,11 +316,11 @@ export default function AddOrder() {
               
               {/* Scan Frame Overlay */}
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-40 border-2 border-white/50 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]">
-                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-lg" />
-                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-lg" />
-                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-lg" />
-                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-lg" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] h-64 border-2 border-white/60 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.65)]">
+                   <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-blue-500 rounded-tl-xl" />
+                   <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-blue-500 rounded-tr-xl" />
+                   <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-blue-500 rounded-bl-xl" />
+                   <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-blue-500 rounded-br-xl" />
                    
                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-500 animate-scan shadow-[0_0_15px_#3b82f6]" />
                 </div>
