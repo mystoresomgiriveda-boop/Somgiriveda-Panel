@@ -7,10 +7,27 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function playBeep() {
-  const audio = document.getElementById('beep-sound') as HTMLAudioElement;
-  if (audio) {
-    audio.currentTime = 0;
-    audio.play().catch(e => console.error('Error playing sound:', e));
+  try {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioCtx = new AudioContextClass();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); // Volume
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.5);
+    
+    // Close context after play to save resources
+    setTimeout(() => audioCtx.close(), 1000);
+  } catch (e) {
+    console.error('Error playing sound:', e);
   }
 }
 

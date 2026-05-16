@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
-import { Lock, Mail, Loader2, ChevronRight, UserPlus, LogIn } from 'lucide-react';
+import { Lock, Mail, Loader2, ChevronRight, LogIn } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const isRegistering = false; // Only login for now
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -30,9 +30,10 @@ export default function Login() {
         toast.success('Login Successful');
       }
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.message || 'Authentication failed');
+      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -52,10 +53,10 @@ export default function Login() {
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
               <Lock className="text-white" size={20} />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Admin<span className="text-blue-500">Pro</span></h1>
+            <h1 className="text-2xl font-bold tracking-tight">Dev Somgiriveda <span className="text-blue-500">Panel</span></h1>
           </div>
-          <h2 className="text-6xl font-black mb-6 leading-tight">Master your <br /><span className="text-blue-500">Inventory.</span></h2>
-          <p className="text-slate-400 text-lg max-w-md">Professional logistics management with real-time OCR scanning and intelligent priority tracking.</p>
+          <h2 className="text-6xl font-black mb-6 leading-tight">Master your <br /><span className="text-blue-500">Logistics.</span></h2>
+          <p className="text-slate-400 text-lg max-w-md">Professional logistics management with real-time OCR scanning and intelligent analytics.</p>
         </motion.div>
       </div>
 
@@ -66,7 +67,7 @@ export default function Login() {
           <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
             <Lock className="text-white" size={16} />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Admin<span className="text-blue-500">Pro</span></h1>
+          <h1 className="text-xl font-bold tracking-tight">Dev Somgiriveda <span className="text-blue-500">Panel</span></h1>
         </div>
 
         <motion.div 
@@ -75,14 +76,8 @@ export default function Login() {
           className="w-full max-w-md"
         >
           <div className="mb-8 text-center sm:text-left">
-            <h3 className="text-3xl font-bold mb-2">{isRegistering ? 'Create Account' : 'Welcome Back'}</h3>
-            <p className="text-slate-400">{isRegistering ? 'Register to start managing orders.' : 'Please enter your credentials to login.'}</p>
-            {!isRegistering && (
-              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                <p className="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1">Getting Started?</p>
-                <p className="text-sm text-slate-300">Click <button onClick={() => setIsRegistering(true)} className="text-blue-400 font-bold hover:underline">Register</button> to create your first admin account.</p>
-              </div>
-            )}
+            <h3 className="text-3xl font-bold mb-2">Welcome Back</h3>
+            <p className="text-slate-400">Please enter your credentials to login.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -125,25 +120,16 @@ export default function Login() {
                 <Loader2 className="animate-spin" size={20} />
               ) : (
                 <>
-                  {isRegistering ? <UserPlus size={18} /> : <LogIn size={18} />}
-                  {isRegistering ? 'Register Now' : 'Login'} 
+                  <LogIn size={18} />
+                  Login
                   <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 text-center">
-            <button 
-              onClick={() => setIsRegistering(!isRegistering)}
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              {isRegistering ? 'Already have an account? Login' : 'Need an account? Register as Admin'}
-            </button>
-          </div>
-
           <div className="mt-10 pt-10 border-t border-slate-900 text-center">
-            <p className="text-slate-500 text-sm">Need help? Contact system administrator.</p>
+            <p className="text-slate-500 text-sm">Need help? Contact Dev Somgiriveda.</p>
           </div>
         </motion.div>
       </div>

@@ -5,6 +5,7 @@ export interface Order {
   amount: number;
   status: 'pending' | 'delivered' | 'rto_success' | 'cancelled';
   courierName: string;
+  state?: string;
   date: string;
-  createdAt?: any;
+  createdAt?: { toDate: () => Date } | null;
 }

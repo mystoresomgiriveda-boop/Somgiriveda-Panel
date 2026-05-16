@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, Calendar, Filter, ArrowUpRight, ChevronDown } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, Filter, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { subDays, isAfter, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -13,8 +13,9 @@ interface Order {
   customerName: string;
   amount: number;
   status: string;
-  date: any;
-  createdAt: any;
+  date: string;
+  createdAt: { toDate: () => Date } | null;
+  state?: string;
 }
 
 export default function Dashboard() {
@@ -88,16 +89,33 @@ export default function Dashboard() {
   // Find courier with most RTO
   const rtoByCourier: Record<string, number> = {};
   filteredOrders.filter(o => o.status === 'rto_success').forEach(o => {
-    // @ts-ignore - assuming courierName exists in data
-    const courier = o.courierName || 'Unknown';
+    // @ts-expect-error - courierName is present in Order data but not in interface
+    const courier = (o as { courierName?: string }).courierName || 'Unknown';
     rtoByCourier[courier] = (rtoByCourier[courier] || 0) + 1;
   });
   
   const topRtoCourier = Object.entries(rtoByCourier).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
 
+  // State analytics
+  const deliveriesByState: Record<string, number> = {};
+  const rtoByState: Record<string, number> = {};
+  
+  filteredOrders.forEach(o => {
+    const s = o.state || 'Unknown';
+    if (o.status === 'delivered') {
+      deliveriesByState[s] = (deliveriesByState[s] || 0) + 1;
+    } else if (o.status === 'rto_success') {
+      rtoByState[s] = (rtoByState[s] || 0) + 1;
+    }
+  });
+
+  const highDeliveriesState = Object.entries(deliveriesByState).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
+  const highRtoState = Object.entries(rtoByState).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
+
   const statCards = [
     { title: 'Total Orders', value: stats.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
     { title: 'Earnings', value: `₹${stats.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
+    { title: 'Pending', value: stats.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
     { title: 'Delivered', value: stats.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
     { title: 'Total Return', value: stats.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
     { title: 'RTO %', value: `${rtoPercentage}%`, icon: Filter, color: 'bg-slate-500', bg: 'bg-slate-50' },
@@ -117,7 +135,7 @@ export default function Dashboard() {
     <div className="space-y-8 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Executive Dashboard</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dev Somgiriveda Panel</h1>
           <p className="text-slate-500 text-sm">Real-time logistics analytics and monitoring.</p>
         </div>
 
@@ -265,9 +283,25 @@ export default function Dashboard() {
         <div className="bg-slate-900 text-white rounded-[2rem] p-8 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute bottom-0 right-0 w-48 h-48 bg-blue-600/20 blur-[80px] rounded-full translate-x-10 translate-y-10" />
           <div className="relative z-10">
-            <h3 className="text-2xl font-black mb-2 leading-tight">Courier <br />Analysis.</h3>
-            <p className="text-slate-400 text-sm mb-4 max-w-[200px]">Top RTO Source: <span className="text-rose-400 font-bold">{topRtoCourier}</span></p>
-            <p className="text-slate-400 text-sm mb-8 max-w-[200px]">Total Orders processed in selected period: <span className="text-white font-bold">{stats.total}</span></p>
+            <h3 className="text-2xl font-black mb-2 leading-tight">Courier & State <br />Analysis.</h3>
+            <div className="space-y-3 mb-8 text-sm">
+              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <span className="text-slate-400">High Deliveries State</span>
+                <span className="text-emerald-400 font-bold">{highDeliveriesState}</span>
+              </div>
+              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <span className="text-slate-400">High RTO State</span>
+                <span className="text-rose-400 font-bold">{highRtoState}</span>
+              </div>
+              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <span className="text-slate-400">Top RTO Courier</span>
+                <span className="text-amber-400 font-bold">{topRtoCourier}</span>
+              </div>
+              <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <span className="text-slate-400">Total Period Orders</span>
+                <span className="text-white font-bold">{stats.total}</span>
+              </div>
+            </div>
           </div>
           <button 
              onClick={() => navigate('/add-order')}

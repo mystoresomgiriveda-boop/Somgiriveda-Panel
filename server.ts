@@ -47,15 +47,18 @@ async function startServer() {
 
       const prompt = `Extract details from this shipping/invoice label. 
       Respond ONLY with a JSON object: 
-      { "orderId": string, "customerName": string, "amount": number, "courierName": string }. 
+      { "orderId": string, "customerName": string, "amount": number, "courierName": string, "state": string }. 
       
-      CRITICAL: Identify the courier company name (e.g., Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax, Shiprocket, Amazon Shipping, etc.). 
-      Even if not explicitly labeled "Courier", look for their logos or brand names.
+      CRITICAL: 
+      1. Identify the courier company name (e.g., Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax, Shiprocket, Amazon Shipping, etc.).
+      2. Identify the destination STATE (e.g., Maharashtra, Gujarat, Delhi, Karnataka, etc.).
+      
+      Even if not explicitly labeled "Courier" or "State", look for their brand names or address components.
       If a value is not found, use an empty string or 0 for amount.`;
 
-      console.log("Sending request to Gemini-3...");
+      console.log("Sending request to Gemini Flash...");
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash-latest",
         contents: {
           parts: [
             { text: prompt },
@@ -77,9 +80,33 @@ async function startServer() {
       const extractedData = JSON.parse(jsonStr);
 
       res.json(extractedData);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("AI Extraction Error:", error);
-      res.status(500).json({ error: "AI Extraction Error: " + (error.message || "Unknown error") });
+      
+      let clientError = "AI Extraction failed";
+      
+      const message = error instanceof Error ? error.message : "";
+      const status = (error as { status?: string }).status;
+      
+      // Check for quota or rate limit errors
+      if (
+        message?.includes("429") || 
+        message?.includes("quota") || 
+        message?.includes("RESOURCE_EXHAUSTED") ||
+        status === "RESOURCE_EXHAUSTED"
+      ) {
+        clientError = "GEMINI_QUOTA_EXCEEDED: You have exceeded the daily free tier limit for the Gemini 3 Flash model (20 requests per day). To continue scanning, please use a Billing-enabled API Key in Settings > Secrets or wait for your quota to reset tomorrow.";
+      } 
+      // Check for invalid API key
+      else if (message?.includes("API_KEY_INVALID") || message?.includes("401")) {
+        clientError = "INVALID_API_KEY: The Gemini API key provided is invalid. Please check your key in Settings > Secrets.";
+      }
+      // Check for 404 (model not found)
+      else if (message?.includes("404") || message?.includes("NOT_FOUND")) {
+        clientError = "MODEL_NOT_FOUND: The specified Gemini model was not found. Reverting to standard model.";
+      }
+      
+      res.status(500).json({ error: clientError });
     }
   });
 

@@ -1,5 +1,5 @@
 {
-  "name": "pro-admin-scanner",
+  "name": "Dev Somgiriveda Panel",
   "description": "Production-ready mobile admin panel with OCR for order management",
   "requestFramePermissions": [
     "camera"

@@ -3,15 +3,15 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: any }> {
-  constructor(props: any) {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: unknown }> {
+  constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: unknown) {
     return { hasError: true, error };
   }
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
   render() {

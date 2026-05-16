@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Search, Filter, Download, MoreVertical, CheckCircle2, RotateCcw, Clock, Trash2, ExternalLink, ChevronRight, Hash, User, IndianRupee } from 'lucide-react';
+import { Search, Download, CheckCircle2, RotateCcw, Clock, Trash2, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
@@ -17,7 +17,7 @@ interface Order {
   courierName: string;
   trackingId: string;
   date: string;
-  createdAt: any;
+  createdAt: { toDate: () => Date } | null;
 }
 
 export default function Orders() {
@@ -39,7 +39,7 @@ export default function Orders() {
       })) as Order[];
       setOrders(ordersData);
       setLoading(false);
-    }, (error) => {
+    }, (error: unknown) => {
       handleFirestoreError(error, OperationType.LIST, path);
     });
     return () => unsubscribe();
