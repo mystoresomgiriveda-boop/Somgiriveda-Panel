@@ -83,7 +83,8 @@ export default function Dashboard() {
   const highPriorityOrdersList = orders.filter(o => {
     if (o.status !== 'pending') return false;
     const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);
-    return isAfter(subDays(new Date(), 15), orderDate);
+    // Logic: Placed within the last 15 days and still pending
+    return isAfter(orderDate, subDays(new Date(), 15));
   });
 
   const statsCount = {
@@ -241,8 +242,8 @@ export default function Dashboard() {
                   <AlertTriangle className="text-white" size={24} />
                 </div>
                 <div>
-                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Orders Overdue</h4>
-                  <p className="text-red-700/80 text-sm max-w-md">These orders have been pending for more than 15 days. Immediate action is recommended.</p>
+                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Recent Pending Orders</h4>
+                  <p className="text-red-700/80 text-sm max-w-md">There are {statsCount.highPriority} orders from the last 15 days still in pending state.</p>
                 </div>
               </div>
               <button 
@@ -280,8 +281,8 @@ export default function Dashboard() {
                       <AlertTriangle size={24} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black">Overdue Alerts</h3>
-                      <p className="text-red-100 text-sm font-medium">Pending for 15+ Days</p>
+                      <h3 className="text-2xl font-black">Pending Alerts</h3>
+                      <p className="text-red-100 text-sm font-medium">Orders from Last 15 Days</p>
                     </div>
                   </div>
                   <button 
