@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, Filter, ArrowUpRight } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { subDays, isAfter, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
+import { subDays, isAfter, isBefore, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 
@@ -21,7 +21,7 @@ interface Order {
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, custom
+  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, overdue, custom
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showOverdueModal, setShowOverdueModal] = useState(false);
   const navigate = useNavigate();
@@ -61,6 +61,9 @@ export default function Dashboard() {
     if (filterDate === '30days') {
       return isAfter(orderDate, subDays(new Date(), 30));
     }
+    if (filterDate === 'overdue') {
+      return order.status === 'pending' && isBefore(orderDate, subDays(new Date(), 15));
+    }
     if (filterDate === 'custom' && dateRange.start && dateRange.end) {
       return isWithinInterval(orderDate, {
         start: startOfDay(new Date(dateRange.start)),
@@ -83,16 +86,14 @@ export default function Dashboard() {
   const highPriorityOrdersList = orders.filter(o => {
     if (o.status !== 'pending') return false;
     const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);
-    // Logic: Placed within the last 15 days and still pending
-    return isAfter(orderDate, subDays(new Date(), 15));
+    // Logic: Placed MORE than 15 days ago and still pending
+    return isBefore(orderDate, subDays(new Date(), 15));
   });
 
   const statsCount = {
     ...stats,
     highPriority: highPriorityOrdersList.length
   };
-
-  const rtoPercentage = stats.total > 0 ? ((stats.rto / stats.total) * 100).toFixed(1) : '0';
 
   // Find courier with most RTO
   const rtoByCourier: Record<string, number> = {};
@@ -131,9 +132,9 @@ export default function Dashboard() {
     { title: 'Total Orders', value: statsCount.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
     { title: 'Earnings', value: `₹${statsCount.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
     { title: 'Pending', value: statsCount.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
+    { title: 'Red Alert', value: statsCount.highPriority, icon: AlertTriangle, color: 'bg-red-500', bg: 'bg-red-50', highlight: statsCount.highPriority > 0, onClick: () => setShowOverdueModal(true) },
     { title: 'Delivered', value: statsCount.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
     { title: 'Total Return', value: statsCount.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
-    { title: 'RTO %', value: `${rtoPercentage}%`, icon: Filter, color: 'bg-slate-500', bg: 'bg-slate-50' },
   ];
 
   if (loading) {
@@ -155,16 +156,19 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-slate-200 rounded-xl w-fit">
-          {['all', 'today', '7days', '30days', 'custom'].map((d) => (
+          {['all', 'today', '7days', '30days', 'overdue', 'custom'].map((d) => (
             <button
               key={d}
               onClick={() => setFilterDate(d)}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all capitalize",
-                filterDate === d ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:bg-slate-50"
+                filterDate === d 
+                  ? (d === 'overdue' ? "bg-red-600 text-white shadow-lg shadow-red-100" : "bg-slate-900 text-white shadow-lg") 
+                  : "text-slate-500 hover:bg-slate-50",
+                d === 'overdue' && filterDate !== d && "text-red-500 bg-red-50 hover:bg-red-100"
               )}
             >
-              {d === '7days' ? 'Last 7D' : d === '30days' ? 'Last 30D' : d}
+              {d === '7days' ? 'Last 7D' : d === '30days' ? 'Last 30D' : d === 'overdue' ? 'Red Alert' : d}
             </button>
           ))}
         </div>
@@ -203,16 +207,18 @@ export default function Dashboard() {
       </AnimatePresence>
 
       {/* Stat Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.title}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
+            onClick={stat.onClick}
             className={cn(
               "p-5 rounded-[2rem] bg-white border border-slate-100 flex flex-col justify-between min-h-[140px] shadow-sm relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300",
-              stat.highlight && "ring-2 ring-red-100 border-red-50"
+              stat.highlight ? "ring-2 ring-red-500 border-red-100 cursor-pointer" : "",
+              stat.onClick ? "cursor-pointer" : ""
             )}
           >
             <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110", stat.bg)}>
@@ -242,8 +248,8 @@ export default function Dashboard() {
                   <AlertTriangle className="text-white" size={24} />
                 </div>
                 <div>
-                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Recent Pending Orders</h4>
-                  <p className="text-red-700/80 text-sm max-w-md">There are {statsCount.highPriority} orders from the last 15 days still in pending state.</p>
+                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Overdue Orders</h4>
+                  <p className="text-red-700/80 text-sm max-w-md">There are {statsCount.highPriority} orders that have been pending for more than 15 days.</p>
                 </div>
               </div>
               <button 
@@ -281,8 +287,8 @@ export default function Dashboard() {
                       <AlertTriangle size={24} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black">Pending Alerts</h3>
-                      <p className="text-red-100 text-sm font-medium">Orders from Last 15 Days</p>
+                      <h3 className="text-2xl font-black">Overdue Alerts</h3>
+                      <p className="text-red-100 text-sm font-medium">Pending for 15+ Days</p>
                     </div>
                   </div>
                   <button 
