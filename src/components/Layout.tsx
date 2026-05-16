@@ -22,7 +22,7 @@ export default function Layout() {
     <div className="flex flex-col min-h-screen pb-20 md:pb-0 md:pl-64 bg-slate-50">
       {/* Sidebar - Hidden on mobile */}
       <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-slate-900 text-white p-6">
-        <h1 className="text-xl font-bold mb-10 tracking-tight leading-tight">Dev Somgiriveda <br /><span className="text-blue-400">Panel</span></h1>
+        <h1 className="text-xl font-bold mb-10 tracking-tight leading-tight">Logistics <br /><span className="text-blue-400">Pro</span></h1>
         <nav className="flex-1 space-y-2">
           {navItems.map((item) => (
             <Link
@@ -52,7 +52,7 @@ export default function Layout() {
       {/* Header - Mobile Only or common? */}
       <header className="md:hidden sticky top-0 z-10 bg-white border-b px-4 py-3">
         <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold tracking-tight">Dev Somgiriveda <span className="text-blue-600">Panel</span></h1>
+          <h1 className="text-xl font-bold tracking-tight">Logistics<span className="text-blue-600">Pro</span></h1>
           <button onClick={handleLogout} className="text-slate-500 p-2">
             <LogOut size={20} />
           </button>

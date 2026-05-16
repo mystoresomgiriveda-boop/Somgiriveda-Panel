@@ -53,7 +53,7 @@ export default function Login() {
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
               <Lock className="text-white" size={20} />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Dev Somgiriveda <span className="text-blue-500">Panel</span></h1>
+            <h1 className="text-2xl font-bold tracking-tight">Logistics<span className="text-blue-500">Pro</span></h1>
           </div>
           <h2 className="text-6xl font-black mb-6 leading-tight">Master your <br /><span className="text-blue-500">Logistics.</span></h2>
           <p className="text-slate-400 text-lg max-w-md">Professional logistics management with real-time OCR scanning and intelligent analytics.</p>
@@ -67,7 +67,7 @@ export default function Login() {
           <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
             <Lock className="text-white" size={16} />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Dev Somgiriveda <span className="text-blue-500">Panel</span></h1>
+          <h1 className="text-xl font-bold tracking-tight">Logistics<span className="text-blue-500">Pro</span></h1>
         </div>
 
         <motion.div 
@@ -129,7 +129,7 @@ export default function Login() {
           </form>
 
           <div className="mt-10 pt-10 border-t border-slate-900 text-center">
-            <p className="text-slate-500 text-sm">Need help? Contact Dev Somgiriveda.</p>
+            <p className="text-slate-500 text-sm">Need help? Contact system administrator.</p>
           </div>
         </motion.div>
       </div>

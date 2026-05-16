@@ -95,7 +95,7 @@ async function startServer() {
         message?.includes("RESOURCE_EXHAUSTED") ||
         status === "RESOURCE_EXHAUSTED"
       ) {
-        clientError = "GEMINI_QUOTA_EXCEEDED: You have exceeded the daily free tier limit for the Gemini 3 Flash model (20 requests per day). To continue scanning, please use a Billing-enabled API Key in Settings > Secrets or wait for your quota to reset tomorrow.";
+        clientError = "GEMINI_QUOTA_EXCEEDED: You have exceeded the daily free tier limit (1,500 requests per day for Gemini 1.5 Flash). To continue scanning, please use a Billing-enabled API Key or wait for your quota to reset tomorrow.";
       } 
       // Check for invalid API key
       else if (message?.includes("API_KEY_INVALID") || message?.includes("401")) {

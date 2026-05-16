@@ -41,6 +41,7 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     Even if not explicitly labeled "Courier" or "State", look for their brand names or address components.
     If a value is not found, use an empty string or 0 for amount.`;
 
+    console.log("Extending request to Gemini 1.5 Flash...");
     const result = await ai.models.generateContent({
       model: "gemini-1.5-flash-latest",
       contents: {
@@ -72,7 +73,7 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     const message = error instanceof Error ? error.message : "";
     
     if (message?.includes("429") || message?.includes("quota") || message?.includes("RESOURCE_EXHAUSTED")) {
-      clientError = "GEMINI_QUOTA_EXCEEDED: Daily limit reached. Please try again tomorrow or add a billing-enabled key in Netlify.";
+      clientError = "GEMINI_QUOTA_EXCEEDED: Daily limit reached (1,500 requests/day for Flash). Please try again tomorrow or add a billing-enabled key in Netlify.";
     } else if (message?.includes("API_KEY_INVALID")) {
       clientError = "INVALID_API_KEY: Please check your Gemini API key in Netlify settings.";
     }
