@@ -57,10 +57,18 @@ export default function Orders() {
   });
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    const statusLabels: Record<string, string> = {
+      'delivered': 'Delivered',
+      'rto_success': 'RTO Success',
+      'pending': 'Pending'
+    };
+    
+    if (!confirm(`Are you sure you want to change status to ${statusLabels[newStatus] || newStatus}?`)) return;
+
     const path = `orders/${orderId}`;
     try {
       await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
-      toast.success(`Marked as ${newStatus}`);
+      toast.success(`Marked as ${statusLabels[newStatus] || newStatus}`);
       setShowActiveRow(null);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
@@ -161,7 +169,7 @@ export default function Orders() {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900">{order.customerName}</h3>
-                      <p className="text-xs text-slate-400 font-medium">Placed on {format(new Date(order.date), 'MMM dd, h:mm a')}</p>
+                      <p className="text-xs text-slate-400 font-medium">Placed on {format(new Date(order.date), 'MMM dd, yyyy')}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end">

@@ -57,15 +57,24 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     if (!responseText) {
       throw new Error("AI returned an empty response.");
     }
-    const jsonStr = responseText.replace(/```json|```|json/g, "").trim();
+
+    // Extract JSON more robustly
+    let jsonStr = responseText;
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    } else {
+      jsonStr = responseText.replace(/```json|```|json/g, "").trim();
+    }
+
     let extractedData;
     try {
       extractedData = JSON.parse(jsonStr);
     } catch {
-      console.error("Failed to parse AI response as JSON:", responseText);
+      console.error("Failed to parse AI response as JSON. Raw:", responseText);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "AI returned an invalid format. Please try again with a clearer photo of the label." }),
+        body: JSON.stringify({ error: "AI scanning failed to format data correctly. Please try scanning again with the label clearly in focus." }),
       };
     }
 
