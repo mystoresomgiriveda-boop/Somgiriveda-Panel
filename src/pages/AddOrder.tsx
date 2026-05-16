@@ -2,16 +2,14 @@ import { useState, useRef } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
-import { Camera, Scan, Zap, Save, X, IndianRupee, User, Package, MessageSquare, Cpu, Globe } from 'lucide-react';
+import { Camera, Scan, Sparkles, Zap, Save, X, IndianRupee, User, Package, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { playBeep, cn, handleFirestoreError, OperationType } from '../lib/utils';
-import { createWorker } from 'tesseract.js';
 
 export default function AddOrder() {
   const [showScanner, setShowScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  const [scanMode, setScanMode] = useState<'ai' | 'local'>('ai');
   
   const [autoPickState, setAutoPickState] = useState(true);
   
@@ -113,88 +111,32 @@ export default function AddOrder() {
       
       const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
 
-      if (scanMode === 'ai') {
-        await handleAIScan(imageBase64);
-      } else {
-        await handleLocalScan(imageBase64);
-      }
-    }
-    setIsScanning(false);
-  };
+      try {
+        const response = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64 })
+        });
 
-  const handleAIScan = async (imageBase64: string) => {
-    try {
-      const response = await fetch('/api/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64 })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Extraction failed');
-      }
-      
-      const extracted = await response.json();
-      
-      if (extracted.orderId || extracted.amount || extracted.customerName) {
-        applyExtractedData(extracted);
-      } else {
-        toast.error("AI could not find details. Try highlighting the text better.");
-      }
-    } catch (err: unknown) {
-      console.error("AI Error:", err);
-      const errorMessage = err instanceof Error ? err.message : "AI Processing Failed";
-      
-      if (errorMessage.includes("QUOTA") || errorMessage.includes("limit")) {
-        toast.error("AI Limit Reached. Switching to 'Local Scan' for you (Unlimited & Free).", { duration: 5000 });
-        setScanMode('local');
-      } else {
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Extraction failed');
+        }
+        
+        const extracted = await response.json();
+        
+        if (extracted.orderId || extracted.amount || extracted.customerName) {
+          applyExtractedData(extracted);
+        } else {
+          toast.error("AI could not find details. Try highlighting the text better.");
+        }
+      } catch (err: unknown) {
+        console.error("AI Error:", err);
+        const errorMessage = err instanceof Error ? err.message : "AI Processing Failed";
         toast.error(errorMessage, { duration: 6000 });
       }
     }
-  };
-
-  const handleLocalScan = async (imageBase64: string) => {
-    try {
-      console.log("Starting local OCR...");
-      const worker = await createWorker('eng');
-      const { data: { text } } = await worker.recognize(imageBase64);
-      await worker.terminate();
-
-      const extracted = parseLocalOCRText(text);
-      
-      if (extracted.orderId || extracted.amount) {
-        applyExtractedData(extracted);
-        toast.success("Local Scan Complete!");
-      } else {
-        toast.error("Local scan couldn't find structured details. Trying better lighting might help.");
-      }
-    } catch (err) {
-      console.error("Local OCR Error:", err);
-      toast.error("Local scanning failed. Check camera quality.");
-    }
-  };
-
-  const parseLocalOCRText = (text: string) => {
-    const result = { orderId: '', amount: '', customerName: '', courierName: '', state: '' };
-    const clean = text.replace(/[\n\r]+/g, ' ');
-
-    const orderMatch = text.match(/(?:Order|ORD|ID)[:\s-]*([A-Z0-9-]{6,})/i) || clean.match(/(?:^|\s)([A-Z]{2,}-\d{4,})(?:\s|$)/);
-    if (orderMatch) result.orderId = orderMatch[1].toUpperCase();
-
-    const amountMatch = text.match(/(?:Rs|₹|Amount|Total)[:\s]*([\d,]{2,})/i) || clean.match(/(\d{3,})(\.00)?/);
-    if (amountMatch) result.amount = amountMatch[1].replace(/,/g, '');
-
-    const states = ["Maharashtra", "Delhi", "Karnataka", "Tamil Nadu", "Gujarat", "Rajasthan", "Punjab", "Haryana", "Uttar Pradesh", "West Bengal", "Kerala", "Assam"];
-    for (const s of states) {
-      if (clean.toLowerCase().includes(s.toLowerCase())) {
-        result.state = s;
-        break;
-      }
-    }
-
-    return result;
+    setIsScanning(false);
   };
 
   const applyExtractedData = (extracted: {
@@ -430,27 +372,9 @@ export default function AddOrder() {
                   <X size={20} />
                 </button>
                 
-                <div className="flex bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10">
-                   <button 
-                     onClick={() => setScanMode('ai')}
-                     className={cn(
-                       "flex items-center gap-2 px-3 py-1 rounded-full transition-all",
-                       scanMode === 'ai' ? "bg-blue-600 text-white" : "text-slate-400"
-                     )}
-                   >
-                     <Globe size={14} />
-                     <span className="text-[10px] font-black uppercase tracking-widest">AI Scan</span>
-                   </button>
-                   <button 
-                     onClick={() => setScanMode('local')}
-                     className={cn(
-                       "flex items-center gap-2 px-3 py-1 rounded-full transition-all",
-                       scanMode === 'local' ? "bg-amber-600 text-white" : "text-slate-400"
-                     )}
-                   >
-                     <Cpu size={14} />
-                     <span className="text-[10px] font-black uppercase tracking-widest">Local</span>
-                   </button>
+                <div className="bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full flex items-center gap-2 border border-white/10">
+                   <Sparkles size={14} className="text-blue-400" />
+                   <span className="text-[10px] font-black text-white uppercase tracking-widest">AI Scanner</span>
                 </div>
 
                 <button 
@@ -467,9 +391,7 @@ export default function AddOrder() {
               {isScanning && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white space-y-4">
                    <div className="w-12 h-12 border-4 border-white/20 border-t-blue-500 rounded-full animate-spin" />
-                   <p className="text-sm font-black uppercase tracking-widest animate-pulse">
-                     {scanMode === 'ai' ? 'Consulting Smart AI...' : 'Analyzing locally...'}
-                   </p>
+                   <p className="text-sm font-black uppercase tracking-widest animate-pulse">Consulting Smart AI...</p>
                 </div>
               )}
             </div>
@@ -478,23 +400,13 @@ export default function AddOrder() {
                <button 
                   onClick={handleScan}
                   disabled={isScanning}
-                  className={cn(
-                    "w-20 h-20 rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform group",
-                    scanMode === 'ai' ? "bg-white" : "bg-amber-100/20 border-2 border-amber-500"
-                  )}
+                  className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform group"
                >
-                  <div className={cn(
-                    "w-16 h-16 rounded-full border-4 flex items-center justify-center transition-colors",
-                    scanMode === 'ai' ? "border-slate-900 group-hover:bg-slate-50" : "border-amber-500 bg-amber-500 text-white"
-                  )}>
-                    <Scan size={32} className={scanMode === 'ai' ? "text-slate-900" : "text-white"} />
+                  <div className="w-16 h-16 rounded-full border-4 border-slate-900 flex items-center justify-center group-hover:bg-slate-50 transition-colors">
+                    <Scan size={32} className="text-slate-900" />
                   </div>
                </button>
-               <p className="text-slate-500 text-xs text-center px-10">
-                 {scanMode === 'ai' 
-                   ? "Smart detection: extracts name, order ID, and price using AI." 
-                   : "Local mode: works without internet or API keys (unlimited)."}
-               </p>
+               <p className="text-slate-500 text-xs text-center px-10">Position the labels order ID and customer info within the box and tap to scan.</p>
                
                <button 
                  onClick={() => { setShowScanner(false); stopCamera(); }}

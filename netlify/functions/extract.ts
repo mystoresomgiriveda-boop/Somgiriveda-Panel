@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 
 export const handler = async (event: { httpMethod: string; body: string }) => {
   // Only allow POST requests
@@ -12,56 +12,46 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Image data required" }) };
     }
 
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
-    if (!openaiKey) {
-      console.error("OPENAI_API_KEY is missing from Netlify environment variables.");
+    if (!geminiKey) {
+      console.error("GEMINI_API_KEY is missing from Netlify environment variables.");
       return { 
         statusCode: 500, 
-        body: JSON.stringify({ error: "OPENAI_API_KEY is not configured on Netlify. Please add it to your Site Settings." }) 
+        body: JSON.stringify({ error: "GEMINI_API_KEY is not configured on Netlify. Please add it in Site Settings." }) 
       };
     }
 
     const prompt = `Extract details from this shipping/invoice label. 
     Respond ONLY with a JSON object: 
-    { "orderId": string, "customerName": string, "amount": number, "courierName": string, "state": string }. 
+    { "orderId": "string", "amount": number, "customerName": "string", "courierName": "string", "state": "string" }
     
-    CRITICAL: 
-    1. Identify the courier company name (e.g., Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax, Shiprocket, Amazon Shipping, etc.).
-    2. Identify the destination STATE (e.g., Maharashtra, Gujarat, Delhi, Karnataka, etc.).
-    
-    Even if not explicitly labeled "Courier" or "State", look for their brand names or address components.
+    Look for Order ID, Customer Name, Total/Price, Courier, and State.
     If a value is not found, use an empty string or 0 for amount.`;
 
     let responseText = "";
 
+    // Try Gemini 1.5 Flash (1500 free/day)
     try {
-      console.log("Using OpenAI GPT-4o-mini in Netlify function...");
-      const openai = new OpenAI({ apiKey: openaiKey });
+      console.log("Netlify Function: Using Gemini 1.5 Flash...");
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ],
-        response_format: { type: "json_object" }
-      });
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
+            mimeType: "image/jpeg",
+          },
+        },
+      ]);
       
-      responseText = response.choices[0].message.content || "";
-    } catch (openaiError) {
-      console.error("OpenAI failed in function:", openaiError);
-      throw openaiError;
+      responseText = result.response.text();
+    } catch (geminiError: unknown) {
+      const errorMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+      console.error("Gemini failed in function:", errorMsg);
+      throw geminiError;
     }
 
     if (!responseText) {
@@ -91,9 +81,9 @@ export const handler = async (event: { httpMethod: string; body: string }) => {
     const message = error instanceof Error ? error.message : "";
     
     if (message?.includes("429") || message?.includes("quota") || message?.includes("RESOURCE_EXHAUSTED")) {
-      clientError = "OPENAI_QUOTA_EXCEEDED: Daily limit reached or credits exhausted. Please check your OpenAI billing details or wait for the reset.";
+      clientError = "GEMINI_QUOTA_EXCEEDED: Free tier limits reached (1,500 scans/day). Please wait for the reset or use a different key.";
     } else if (message?.includes("API_KEY_INVALID")) {
-      clientError = "INVALID_API_KEY: Please check your OpenAI API key in Netlify settings.";
+      clientError = "INVALID_API_KEY: Please check your Gemini API key in Netlify settings.";
     }
 
     return {

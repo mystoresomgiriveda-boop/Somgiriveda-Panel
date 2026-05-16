@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -29,54 +29,44 @@ async function startServer() {
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: "Image data required" });
 
-      const openaiKey = process.env.OPENAI_API_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY;
 
-      if (!openaiKey) {
-        console.error("OPENAI_API_KEY is missing from environment");
-        return res.status(500).json({ error: "OPENAI_API_KEY is not configured on the server. Please add it in Settings > Secrets." });
+      if (!geminiKey) {
+        console.error("GEMINI_API_KEY is missing from environment");
+        return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server. Please add it in Settings > Secrets." });
       }
 
       const prompt = `Extract details from this shipping/invoice label. 
       Respond ONLY with a JSON object: 
-      { "orderId": string, "customerName": string, "amount": number, "courierName": string, "state": string }. 
+      { "orderId": "string", "amount": number, "customerName": "string", "courierName": "string", "state": "string" }
       
-      CRITICAL: 
-      1. Identify the courier company name (e.g., Delhivery, Bluedart, Ecom Express, Xpressbees, Shadowfax, Shiprocket, Amazon Shipping, etc.).
-      2. Identify the destination STATE (e.g., Maharashtra, Gujarat, Delhi, Karnataka, etc.).
-      
-      Even if not explicitly labeled "Courier" or "State", look for their brand names or address components.
+      Look for Order ID (ORD-XXX), Customer Name, and Total/Price. 
+      Identify the courier (e.g., Delhivery, BlueDart, Ecom Express) and the destination state.
       If a value is not found, use an empty string or 0 for amount.`;
 
       let responseText = "";
       
+      // Try Gemini 1.5 Flash (1500/day free)
       try {
-        console.log("Using OpenAI GPT-4o-mini for extraction...");
-        const openai = new OpenAI({ apiKey: openaiKey });
+        console.log("Using Gemini 1.5 Flash (High Free Tier)...");
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
-                  }
-                }
-              ]
-            }
-          ],
-          response_format: { type: "json_object" }
-        });
+        const result = await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              data: imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64,
+              mimeType: "image/jpeg",
+            },
+          },
+        ]);
         
-        responseText = response.choices[0].message.content || "";
-        console.log("OpenAI Response received.");
-      } catch (openaiError) {
-        console.error("OpenAI failed:", openaiError);
-        throw openaiError;
+        responseText = result.response.text();
+      } catch (geminiError: unknown) {
+        const errorMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+        console.error("Gemini Flash failed:", errorMsg);
+        throw geminiError;
       }
       console.log("AI Response received (length):", responseText.length);
       
@@ -108,15 +98,10 @@ async function startServer() {
         message?.includes("RESOURCE_EXHAUSTED") ||
         status === 429
       ) {
-        clientError = "OPENAI_QUOTA_EXCEEDED: Daily limit reached or credits exhausted. Please check your OpenAI billing details or wait for the reset.";
+        clientError = "GEMINI_QUOTA_EXCEEDED: Free tier limits reached (1,500 scans/day). Please wait for the reset or use a different key.";
       } 
-      // Check for invalid API key
       else if (message?.includes("API_KEY_INVALID") || message?.includes("401")) {
-        clientError = "INVALID_API_KEY: The OpenAI API key provided is invalid. Please check your key in Settings > Secrets.";
-      }
-      // Check for 404 (model not found)
-      else if (message?.includes("404") || message?.includes("NOT_FOUND")) {
-        clientError = "MODEL_NOT_FOUND: The specified OpenAI model was not found.";
+        clientError = "INVALID_API_KEY: The Gemini API key provided is invalid. Please check your key in Settings > Secrets.";
       }
       
       res.status(500).json({ error: clientError });
