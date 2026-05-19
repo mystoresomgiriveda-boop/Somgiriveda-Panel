@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { ShoppingBag, Clock, CheckCircle2, RotateCcw, AlertTriangle, ArrowUpRight } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle2, RotateCcw, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { subDays, isAfter, isBefore, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
+import { subDays, isAfter, startOfDay, isWithinInterval, endOfDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 
@@ -21,9 +21,8 @@ interface Order {
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, overdue, custom
+  const [filterDate, setFilterDate] = useState('all'); // all, today, 7days, 30days, custom
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [showOverdueModal, setShowOverdueModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,9 +60,6 @@ export default function Dashboard() {
     if (filterDate === '30days') {
       return isAfter(orderDate, subDays(new Date(), 30));
     }
-    if (filterDate === 'overdue') {
-      return order.status === 'pending' && isBefore(orderDate, subDays(new Date(), 15));
-    }
     if (filterDate === 'custom' && dateRange.start && dateRange.end) {
       return isWithinInterval(orderDate, {
         start: startOfDay(new Date(dateRange.start)),
@@ -81,18 +77,6 @@ export default function Dashboard() {
     earnings: filteredOrders
       .filter(o => o.status === 'delivered')
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0),
-  };
-
-  const highPriorityOrdersList = orders.filter(o => {
-    if (o.status !== 'pending') return false;
-    const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.date);
-    // Logic: Placed MORE than 15 days ago and still pending
-    return isBefore(orderDate, subDays(new Date(), 15));
-  });
-
-  const statsCount = {
-    ...stats,
-    highPriority: highPriorityOrdersList.length
   };
 
   // Find courier with most RTO
@@ -129,12 +113,11 @@ export default function Dashboard() {
   const highRtoState = Object.entries(rtoByState).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
 
   const statCards = [
-    { title: 'Total Orders', value: statsCount.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
-    { title: 'Earnings', value: `₹${statsCount.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
-    { title: 'Pending', value: statsCount.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
-    { title: 'Red Alert', value: statsCount.highPriority, icon: AlertTriangle, color: 'bg-red-500', bg: 'bg-red-50', highlight: statsCount.highPriority > 0, onClick: () => setShowOverdueModal(true) },
-    { title: 'Delivered', value: statsCount.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
-    { title: 'Total Return', value: statsCount.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
+    { title: 'Total Orders', value: stats.total, icon: ShoppingBag, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
+    { title: 'Earnings', value: `₹${stats.earnings.toLocaleString()}`, icon: ArrowUpRight, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
+    { title: 'Pending', value: stats.pending, icon: Clock, color: 'bg-amber-500', bg: 'bg-amber-50' },
+    { title: 'Delivered', value: stats.delivered, icon: CheckCircle2, color: 'bg-blue-500', bg: 'bg-blue-50' },
+    { title: 'Total Return', value: stats.rto, icon: RotateCcw, color: 'bg-rose-500', bg: 'bg-rose-50' },
   ];
 
   if (loading) {
@@ -156,19 +139,18 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-slate-200 rounded-xl w-fit">
-          {['all', 'today', '7days', '30days', 'overdue', 'custom'].map((d) => (
+          {['all', 'today', '7days', '30days', 'custom'].map((d) => (
             <button
               key={d}
               onClick={() => setFilterDate(d)}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all capitalize",
                 filterDate === d 
-                  ? (d === 'overdue' ? "bg-red-600 text-white shadow-lg shadow-red-100" : "bg-slate-900 text-white shadow-lg") 
-                  : "text-slate-500 hover:bg-slate-50",
-                d === 'overdue' && filterDate !== d && "text-red-500 bg-red-50 hover:bg-red-100"
+                  ? "bg-slate-900 text-white shadow-lg" 
+                  : "text-slate-500 hover:bg-slate-50"
               )}
             >
-              {d === '7days' ? 'Last 7D' : d === '30days' ? 'Last 30D' : d === 'overdue' ? 'Red Alert' : d}
+              {d === '7days' ? 'Last 7D' : d === '30days' ? 'Last 30D' : d}
             </button>
           ))}
         </div>
@@ -207,7 +189,7 @@ export default function Dashboard() {
       </AnimatePresence>
 
       {/* Stat Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.title}
@@ -236,112 +218,6 @@ export default function Dashboard() {
           </motion.div>
         ))}
       </div>
-
-      {/* Featured Alerts / Priority List Preview */}
-      {statsCount.highPriority > 0 && (
-        <div className="space-y-6">
-          <div className="bg-red-50 border border-red-100 rounded-[2rem] p-6 relative overflow-hidden shadow-sm">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 blur-3xl rounded-full -mr-32 -mt-32" />
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
-                  <AlertTriangle className="text-white" size={24} />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-red-900">Urgent: {statsCount.highPriority} Overdue Orders</h4>
-                  <p className="text-red-700/80 text-sm max-w-md">There are {statsCount.highPriority} orders that have been pending for more than 15 days.</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowOverdueModal(true)}
-                className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-200 hover:bg-red-700 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 whitespace-nowrap"
-              >
-                Open Alert Dialog <ArrowUpRight size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Overdue Alert Dialog (Modal) */}
-      <AnimatePresence>
-        {showOverdueModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowOverdueModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl border-4 border-red-50 overflow-hidden"
-            >
-              <div className="bg-red-600 p-8 text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
-                      <AlertTriangle size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black">Overdue Alerts</h3>
-                      <p className="text-red-100 text-sm font-medium">Pending for 15+ Days</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setShowOverdueModal(false)}
-                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors font-bold"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              
-              <div className="p-2 max-h-[60vh] overflow-y-auto">
-                <div className="divide-y divide-slate-100">
-                  {highPriorityOrdersList.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-5 hover:bg-red-50/50 transition-colors rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center font-bold text-red-600 text-sm">
-                          {order.customerName.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 leading-tight">{order.customerName}</p>
-                          <p className="text-xs text-slate-400 font-mono">ID: {order.orderId}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-red-600">₹{order.amount}</p>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('/orders');
-                          }}
-                          className="text-[10px] text-red-500 font-black uppercase hover:underline"
-                        >
-                          Resolve →
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-6 pt-0">
-                <button 
-                  onClick={() => setShowOverdueModal(false)}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-slate-800 transition-colors"
-                >
-                  Dismiss Alerts
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Simple Table Preview or Charts could go here */}
       <div className="grid lg:grid-cols-3 gap-6">
